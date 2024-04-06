@@ -90,9 +90,19 @@ export const login = async (req, res) => {
 		}
 
 		user = await UsersModel.findOne({ email, password });
+
 		if (!user) {
 			return res.json({
 				message: "Incorrect email or password. Please try again.",
+				responsecode: "402",
+			});
+		}
+
+		user = await UsersModel.findOne({ email, password, verified: true });
+
+		if (!user) {
+			return res.json({
+				message: "This email is not verified",
 				responsecode: "402",
 			});
 		}
