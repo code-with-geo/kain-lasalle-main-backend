@@ -226,3 +226,52 @@ export const getUserByID = async (req, res) => {
 		});
 	}
 };
+
+export const EditProfile = async (req, res) => {
+	try {
+		const { userID, name, email } = req.body;
+		let user = await UsersModel.findOne({ _id: userID });
+
+		if (!user)
+			return res.json({
+				responsecode: "402",
+				message: "This user is not registered.",
+			});
+
+		user = await UsersModel.findOne({ _id: userID });
+		if (user) {
+			user = await UsersModel.updateOne(
+				{
+					_id: user._id,
+				},
+				{ $set: { name, email, verified: false } }
+			);
+
+			user = await UsersModel.findOne({ _id: userID });
+
+			const token = await new VerificationTokenModel({
+				userID: user._id,
+				token: jwt.sign({ id: user._id }, process.env.SECRET_KEY),
+			}).save();
+
+			const emailURL = `${process.env.CLIENT_URL}/${user._id}/verify/${token.token}`;
+			await EmailSender(
+				user.email,
+				"Email Verification",
+				`Hi there, \n You have set ${user.email} as your registered email. Please click the link to verify your email: ` +
+					emailURL
+			);
+
+			return res.json({
+				responsecode: "200",
+				message: "Successfully Updated",
+			});
+		}
+	} catch (err) {
+		console.log(err);
+		return res.status(500).send({
+			responsecode: "500",
+			message: "Please contact technical support.",
+		});
+	}
+};
