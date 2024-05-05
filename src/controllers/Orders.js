@@ -153,7 +153,7 @@ export const createOrder = async (req, res) => {
 			return res.json({
 				responsecode: "200",
 				paymenttype: "Cash",
-				ordernumber: order._id,
+				ordernumber: order.orderNumber,
 			});
 		}
 	} catch (err) {
