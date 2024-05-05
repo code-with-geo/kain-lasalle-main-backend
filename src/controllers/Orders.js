@@ -28,8 +28,7 @@ export const createOrder = async (req, res) => {
 		}
 
 		if (paymentType === "Pay Online") {
-			const randomNumber = Math.floor(Math.random() * (10000 - 1)) + 1;
-			console.log(randomNumber);
+			const randomNumber = Math.floor(Math.random() * (100000 - 1)) + 1;
 			const options = {
 				method: "POST",
 				headers: {
@@ -100,7 +99,6 @@ export const createOrder = async (req, res) => {
 			});
 		} else {
 			const randomNumber = Math.floor(Math.random() * (10000 - 1)) + 1;
-			console.log(randomNumber);
 
 			let order = await new OrdersModel({
 				orderNumber: randomNumber,
@@ -113,7 +111,7 @@ export const createOrder = async (req, res) => {
 			let cart = await CartModel.find({ userID });
 			if (cart) {
 				cart.map(async (value) => {
-					return await new OrdersItemModel({
+					let insertItem = await new OrdersItemModel({
 						orderID: order._id,
 						userID: value.userID,
 						storeID: value.storeID,
@@ -122,6 +120,17 @@ export const createOrder = async (req, res) => {
 						units: value.units,
 						subtotal: value.subtotal,
 					}).save();
+
+					let product = await ProductModel.findOne({
+						_id: value.productID,
+					});
+					let newUnit = parseInt(product.units) - value.units;
+
+					await ProductModel.updateOne(
+						{ _id: value.productID },
+						{ $set: { units: newUnit } }
+					);
+					return { insertItem, product };
 				});
 			}
 
@@ -136,7 +145,7 @@ export const createOrder = async (req, res) => {
 			await EmailSender(
 				user.email,
 				"Pending Payment",
-				`Hi there, \n Please pay over the counter so we can ready your order. \n Please disregard this email if you already paid. \n Thank you,`
+				`Hi there, \n Please pay your order number ${order.orderNumber} over the counter so we can ready your order. \n Please disregard this email if you already paid. \n Thank you,`
 			);
 
 			cart = await CartModel.deleteMany({ userID });
