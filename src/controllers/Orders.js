@@ -8,6 +8,10 @@ import EmailSender from "../helper/EmailSender.js";
 import { UsersModel } from "../models/Users.js";
 dotenv.config();
 
+function getRandomNumber(min, max) {
+	return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 export const createOrder = async (req, res) => {
 	try {
 		const { userID, storeID, total, paymentType } = req.body;
@@ -28,6 +32,7 @@ export const createOrder = async (req, res) => {
 		}
 
 		if (paymentType === "Pay Online") {
+			const randomNumber = getRandomNumber(1, 100000000);
 			const options = {
 				method: "POST",
 				headers: {
@@ -43,6 +48,7 @@ export const createOrder = async (req, res) => {
 				.then((response) => response.json())
 				.then(async (response) => {
 					let order = await new OrdersModel({
+						orderNumber: randomNumber,
 						userID,
 						storeID,
 						total,
@@ -90,7 +96,7 @@ export const createOrder = async (req, res) => {
 					await EmailSender(
 						user.email,
 						"Order Notification",
-						`Hi there, \n You're order ID ${order._id} will be ready at ${formattedDate}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
+						`Hi there, \n You're order number is ${order.orderNumber}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
 					);
 
 					cart = await CartModel.deleteMany({ userID });
@@ -103,7 +109,10 @@ export const createOrder = async (req, res) => {
 				paymenturl: url,
 			});
 		} else {
+			const randomNumber = getRandomNumber(1, 100000000);
+
 			let order = await new OrdersModel({
+				orderNumber: randomNumber,
 				userID,
 				storeID,
 				total,
@@ -137,7 +146,13 @@ export const createOrder = async (req, res) => {
 			await EmailSender(
 				user.email,
 				"Order Notification",
-				`Hi there, \n You're order ID ${order._id} will be ready at ${formattedDate}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
+				`Hi there, \n You're order number is ${order.orderNumber}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
+			);
+
+			await EmailSender(
+				user.email,
+				"Pending Payment",
+				`Hi there, \n Please pay over the counter so we can ready your order. \n Please disregard this email if you already paid. \n Thank you,`
 			);
 
 			cart = await CartModel.deleteMany({ userID });
