@@ -55,7 +55,7 @@ export const createOrder = async (req, res) => {
 					let cart = await CartModel.find({ userID });
 					if (cart) {
 						cart.map(async (value) => {
-							await new OrdersItemModel({
+							let insertItem = await new OrdersItemModel({
 								orderID: order._id,
 								userID: value.userID,
 								storeID: value.storeID,
@@ -74,6 +74,7 @@ export const createOrder = async (req, res) => {
 								{ _id: value.productID },
 								{ $set: { units: newUnit } }
 							);
+							return { insertItem, product };
 						});
 					}
 
