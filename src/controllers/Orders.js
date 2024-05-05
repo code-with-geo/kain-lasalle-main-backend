@@ -10,7 +10,7 @@ dotenv.config();
 
 export const createOrder = async (req, res) => {
 	try {
-		const { userID, storeID, total } = req.body;
+		const { userID, storeID, total, paymentType } = req.body;
 		if (!userID.match(/^[0-9a-fA-F]{24}$/)) {
 			return res.send({
 				responsecode: "402",
@@ -27,67 +27,126 @@ export const createOrder = async (req, res) => {
 			});
 		}
 
-		const options = {
-			method: "POST",
-			headers: {
-				accept: "application/json",
-				"content-type": "application/json",
-				authorization: `Basic ${process.env.PAYMONGO_AUTH}`,
-			},
-			body: JSON.stringify({
-				data: { attributes: { amount: total * 100, description: "payment" } },
-			}),
-		};
-		let url = await fetch("https://api.paymongo.com/v1/links", options)
-			.then((response) => response.json())
-			.then(async (response) => {
-				let order = await new OrdersModel({
-					userID,
-					storeID,
-					total,
-					paymentID: response.data.id,
-					paymentUrl: response.data.attributes.checkout_url,
-					paymentReferenceNumber: response.data.attributes.reference_number,
-				}).save();
+		if (paymentType === "Pay Online") {
+			const options = {
+				method: "POST",
+				headers: {
+					accept: "application/json",
+					"content-type": "application/json",
+					authorization: `Basic ${process.env.PAYMONGO_AUTH}`,
+				},
+				body: JSON.stringify({
+					data: { attributes: { amount: total * 100, description: "payment" } },
+				}),
+			};
+			let url = await fetch("https://api.paymongo.com/v1/links", options)
+				.then((response) => response.json())
+				.then(async (response) => {
+					let order = await new OrdersModel({
+						userID,
+						storeID,
+						total,
+						paymentID: response.data.id,
+						paymentUrl: response.data.attributes.checkout_url,
+						paymentReferenceNumber: response.data.attributes.reference_number,
+						paymentType,
+					}).save();
 
-				let cart = await CartModel.find({ userID });
-				if (cart) {
-					cart.map(async (value) => {
-						return await new OrdersItemModel({
-							orderID: order._id,
-							userID: value.userID,
-							storeID: value.storeID,
-							productID: value.productID,
-							price: value.price,
-							units: value.units,
-							subtotal: value.subtotal,
-						}).save();
-					});
-				}
+					let cart = await CartModel.find({ userID });
+					if (cart) {
+						cart.map(async (value) => {
+							await new OrdersItemModel({
+								orderID: order._id,
+								userID: value.userID,
+								storeID: value.storeID,
+								productID: value.productID,
+								price: value.price,
+								units: value.units,
+								subtotal: value.subtotal,
+							}).save();
 
-				let user = await UsersModel.findOne({ _id: userID });
-				const originalDateString = order.estimatedDateTime;
-				const originalDate = new Date(originalDateString);
+							let product = await ProductModel.findOne({
+								_id: value.productID,
+							});
+							let newUnit = parseInt(product.units) - value.units;
 
-				const formattedDate = originalDate
-					.toISOString()
-					.replace(/T/, " ")
-					.replace(/\..+/, "");
+							await ProductModel.updateOne(
+								{ _id: value.productID },
+								{ $set: { units: newUnit } }
+							);
+						});
+					}
 
-				await EmailSender(
-					user.email,
-					"Order Notification",
-					`Hi there, \n You're order ID ${order._id} will be ready at ${formattedDate}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
-				);
+					let user = await UsersModel.findOne({ _id: userID });
+					const originalDateString = order.estimatedDateTime;
+					const originalDate = new Date(originalDateString);
 
-				cart = await CartModel.deleteMany({ userID });
-				return order.paymentUrl;
-			})
-			.catch((err) => console.error(err));
-		return res.json({
-			responsecode: "200",
-			paymenturl: url,
-		});
+					const formattedDate = originalDate
+						.toISOString()
+						.replace(/T/, " ")
+						.replace(/\..+/, "");
+
+					await EmailSender(
+						user.email,
+						"Order Notification",
+						`Hi there, \n You're order ID ${order._id} will be ready at ${formattedDate}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
+					);
+
+					cart = await CartModel.deleteMany({ userID });
+					return order.paymentUrl;
+				})
+				.catch((err) => console.error(err));
+			return res.json({
+				responsecode: "200",
+				paymenttype: "Pay Online",
+				paymenturl: url,
+			});
+		} else {
+			let order = await new OrdersModel({
+				userID,
+				storeID,
+				total,
+				paymentType,
+			}).save();
+
+			let cart = await CartModel.find({ userID });
+			if (cart) {
+				cart.map(async (value) => {
+					return await new OrdersItemModel({
+						orderID: order._id,
+						userID: value.userID,
+						storeID: value.storeID,
+						productID: value.productID,
+						price: value.price,
+						units: value.units,
+						subtotal: value.subtotal,
+					}).save();
+				});
+			}
+
+			let user = await UsersModel.findOne({ _id: userID });
+			const originalDateString = order.estimatedDateTime;
+			const originalDate = new Date(originalDateString);
+
+			const formattedDate = originalDate
+				.toISOString()
+				.replace(/T/, " ")
+				.replace(/\..+/, "");
+
+			await EmailSender(
+				user.email,
+				"Order Notification",
+				`Hi there, \n You're order ID ${order._id} will be ready at ${formattedDate}. Once your order is ready we'll send another notification. Please check your email. \n Thank you,`
+			);
+
+			cart = await CartModel.deleteMany({ userID });
+
+			return res.json({
+				responsecode: "200",
+				paymenttype: "Cash",
+				ordernumber: order._id,
+			});
+		}
 	} catch (err) {
 		console.log(err);
 		return res.status(500).send({

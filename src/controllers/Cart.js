@@ -183,3 +183,38 @@ export const getCartCount = async (req, res) => {
 		});
 	}
 };
+
+export const addFromDiffentStore = async (req, res) => {
+	try {
+		const { storeID, userID, productID, price, units } = req.body;
+		let cart = await CartModel.findOne({ userID });
+
+		if (storeID.match(/^[0-9a-fA-F]{24}$/)) {
+			if (cart.storeID != storeID) {
+				cart = await CartModel.deleteMany({ userID });
+				cart = await new CartModel({
+					storeID,
+					userID,
+					productID,
+					price,
+					units,
+				}).save();
+			}
+			return res.json({
+				responsecode: "200",
+				message: "Product successfully added to cart.",
+			});
+		} else {
+			return res.json({
+				responsecode: "402",
+				message: "Invalid url",
+			});
+		}
+	} catch (err) {
+		console.log(err);
+		return res.status(500).send({
+			responsecode: "500",
+			message: "Please contact technical support.",
+		});
+	}
+};
