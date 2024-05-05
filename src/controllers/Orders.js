@@ -8,10 +8,6 @@ import EmailSender from "../helper/EmailSender.js";
 import { UsersModel } from "../models/Users.js";
 dotenv.config();
 
-function getRandomNumber(min, max) {
-	return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 export const createOrder = async (req, res) => {
 	try {
 		const { userID, storeID, total, paymentType } = req.body;
@@ -32,7 +28,8 @@ export const createOrder = async (req, res) => {
 		}
 
 		if (paymentType === "Pay Online") {
-			const randomNumber = getRandomNumber(1, 100000000);
+			const randomNumber = Math.floor(Math.random() * (10000 - 1)) + 1;
+			console.log(randomNumber);
 			const options = {
 				method: "POST",
 				headers: {
@@ -85,13 +82,6 @@ export const createOrder = async (req, res) => {
 					}
 
 					let user = await UsersModel.findOne({ _id: userID });
-					const originalDateString = order.estimatedDateTime;
-					const originalDate = new Date(originalDateString);
-
-					const formattedDate = originalDate
-						.toISOString()
-						.replace(/T/, " ")
-						.replace(/\..+/, "");
 
 					await EmailSender(
 						user.email,
@@ -109,7 +99,8 @@ export const createOrder = async (req, res) => {
 				paymenturl: url,
 			});
 		} else {
-			const randomNumber = getRandomNumber(1, 100000000);
+			const randomNumber = Math.floor(Math.random() * (10000 - 1)) + 1;
+			console.log(randomNumber);
 
 			let order = await new OrdersModel({
 				orderNumber: randomNumber,
@@ -135,13 +126,6 @@ export const createOrder = async (req, res) => {
 			}
 
 			let user = await UsersModel.findOne({ _id: userID });
-			const originalDateString = order.estimatedDateTime;
-			const originalDate = new Date(originalDateString);
-
-			const formattedDate = originalDate
-				.toISOString()
-				.replace(/T/, " ")
-				.replace(/\..+/, "");
 
 			await EmailSender(
 				user.email,
