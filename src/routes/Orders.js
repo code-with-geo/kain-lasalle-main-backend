@@ -12,6 +12,7 @@ import {
 	getOrdersCount,
 	getSoldOutProducts,
 	verifyPayment,
+	orderCancellation,
 } from "../controllers/Orders.js";
 
 const router = express.Router();
@@ -28,5 +29,6 @@ router.post("/count", getOrdersCount);
 router.post("/unpaid", getAllUnpaidOrder);
 router.post("/soldout", getSoldOutProducts);
 router.post("/cancelled", getCancelledOrdeCount);
+router.post("/cancellation", orderCancellation);
 
 export { router as OrdersRoute };

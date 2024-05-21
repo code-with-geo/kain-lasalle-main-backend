@@ -227,11 +227,7 @@ export const getVendorByID = async (req, res) => {
 export const updateVendor = async (req, res) => {
 	try {
 		const { name, email, phonenumber, password } = req.body;
-		//console.log(req.params.vendorID);
-		//console.log(name);
-		console.log(email);
-		//console.log(phonenumber);
-		//console.log(password);
+
 		let vendor = await VendorModel.findOne({ _id: req.params.vendorID });
 		if (!vendor) {
 			return res.json({

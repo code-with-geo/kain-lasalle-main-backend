@@ -199,11 +199,10 @@ export const getAllOrders = async (req, res) => {
 					from: "stores",
 					localField: "storeID",
 					foreignField: "_id",
-					as: "user",
+					as: "store",
 				},
 			},
-		]);
-
+		]).match({ userID: new Types.ObjectId(userID) });
 		return res.json({
 			responsecode: "200",
 			orders: orders,
@@ -342,11 +341,11 @@ export const completeOrder = async (req, res) => {
 
 		let orders = await OrdersModel.findOne({ _id: orderID });
 		if (orders) {
-			if (orders.paymentStatus !== "pending") {
-				if (orders.orderStatus != "complete") {
+			if (orders.paymentStatus !== "Unpaid") {
+				if (orders.orderStatus != "Complete") {
 					await OrdersModel.updateOne(
 						{ _id: orderID },
-						{ $set: { orderStatus: "complete" } }
+						{ $set: { orderStatus: "Complete" } }
 					);
 
 					let user = await UsersModel.findOne({ _id: orders.userID });
@@ -389,7 +388,7 @@ export const completeOrder = async (req, res) => {
 				if (verify != "unpaid") {
 					await OrdersModel.updateOne(
 						{ _id: orderID },
-						{ $set: { paymentStatus: "paid" } }
+						{ $set: { paymentStatus: "Paid" } }
 					);
 
 					return res.json({
@@ -417,7 +416,98 @@ export const completeOrder = async (req, res) => {
 		});
 	}
 };
+export const orderCancellation = async (req, res) => {
+	try {
+		const { orderID } = req.body;
 
+		if (!orderID.match(/^[0-9a-fA-F]{24}$/)) {
+			return res.send({
+				responsecode: "402",
+				message: "Order not found.",
+			});
+		}
+
+		let orders = await OrdersModel.findOne({ _id: orderID });
+
+		if (orders) {
+			if (orders.paymentStatus !== "Unpaid") {
+				return res.json({
+					responsecode: "402",
+					message: "Order is already paid cancellation is not allowed",
+				});
+			} else if (
+				orders.paymentType !== "Cash" &&
+				orders.paymentStatus === "Unpaid"
+			) {
+				let status = "";
+				const options = {
+					method: "GET",
+					headers: {
+						accept: "application/json",
+						authorization: `Basic ${process.env.PAYMONGO_AUTH}`,
+					},
+				};
+
+				let verify = await fetch(
+					`https://api.paymongo.com/v1/links/${orders.paymentID}`,
+					options
+				)
+					.then((response) => response.json())
+					.then((response) => {
+						status = response.data.attributes.status;
+						return status;
+					})
+					.catch((err) => console.error(err));
+
+				if (verify != "unpaid") {
+					await OrdersModel.updateOne(
+						{ _id: orderID },
+						{ $set: { paymentStatus: "Paid" } }
+					);
+
+					return res.send({
+						responsecode: "200",
+						message: "Order is paid.",
+					});
+				} else {
+					await OrdersModel.updateOne(
+						{ _id: orderID },
+						{ $set: { orderStatus: "Cancelled" } }
+					);
+
+					return res.send({
+						responsecode: "200",
+						message: "Order is cancelled.",
+					});
+				}
+			} else if (
+				orders.paymentType === "Cash" &&
+				orders.paymentStatus !== "Unpaid"
+			) {
+				return res.send({
+					responsecode: "402",
+					message: "Order is already paid cancellation is not allowed",
+				});
+			} else {
+				await OrdersModel.updateOne(
+					{ _id: orderID },
+					{ $set: { orderStatus: "Cancelled" } }
+				);
+
+				return res.send({
+					responsecode: "200",
+					message: "Order is cancelled.",
+				});
+			}
+		}
+	} catch (err) {
+		console.log(err);
+		return res.status(500).send({
+			responsecode: "500",
+			message: "Please contact technical support.",
+		});
+	}
+};
 export const verifyPayment = async (req, res) => {
 	try {
 		const { orderID } = req.body;
@@ -431,7 +521,7 @@ export const verifyPayment = async (req, res) => {
 
 		let orders = await OrdersModel.findOne({ _id: orderID });
 		if (orders) {
-			if (orders.paymentStatus !== "pending") {
+			if (orders.paymentStatus !== "Unpaid") {
 				return res.json({
 					responsecode: "200",
 					message: "Order already paid",
@@ -460,7 +550,7 @@ export const verifyPayment = async (req, res) => {
 				if (verify != "unpaid") {
 					await OrdersModel.updateOne(
 						{ _id: orderID },
-						{ $set: { paymentStatus: "paid" } }
+						{ $set: { paymentStatus: "Paid" } }
 					);
 
 					return res.json({
@@ -501,7 +591,7 @@ export const getAllPendingOrder = async (req, res) => {
 				});
 			}
 
-			let orders = await OrdersModel.find({ storeID, orderStatus: "pending" });
+			let orders = await OrdersModel.find({ storeID, orderStatus: "Pending" });
 
 			if (!orders) {
 				return res.send({
@@ -577,7 +667,7 @@ export const getAllUnpaidOrder = async (req, res) => {
 
 			let orders = await OrdersModel.countDocuments({
 				storeID,
-				paymentStatus: "pending",
+				paymentStatus: "Unpaid",
 			});
 
 			if (!orders) {
@@ -665,7 +755,7 @@ export const getCancelledOrdeCount = async (req, res) => {
 
 			let orders = await OrdersModel.countDocuments({
 				storeID,
-				orderStatus: "cancelled",
+				orderStatus: "Cancelled",
 			});
 
 			if (!orders) {
